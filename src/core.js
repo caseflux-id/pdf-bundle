@@ -19,7 +19,37 @@ export function normalize(documents) {
     if (!(data instanceof Uint8Array) || data.byteLength === 0) {
       throw new TypeError(`document ${index}: data must be a non-empty Uint8Array (or string for HTML)`);
     }
-    return { mimeType: document.mimeType, data };
+    const geometry = document.geometry;
+    if (geometry === undefined) return { mimeType: document.mimeType, data };
+    if (!geometry || typeof geometry !== "object" || Array.isArray(geometry)) {
+      throw new TypeError(`document ${index}: geometry must be an object`);
+    }
+    for (const key of Object.keys(geometry)) {
+      if (!["page", "orientation", "fit"].includes(key)) {
+        throw new TypeError(`document ${index}: unknown geometry property ${key}`);
+      }
+    }
+    if (!["a4", "letter", "legal"].includes(geometry.page)) {
+      throw new TypeError(`document ${index}: invalid geometry page`);
+    }
+    if (geometry.orientation !== undefined && !["portrait", "landscape"].includes(geometry.orientation)) {
+      throw new TypeError(`document ${index}: invalid geometry orientation`);
+    }
+    if (document.mimeType === "text/html" && Object.hasOwn(geometry, "fit")) {
+      throw new TypeError(`document ${index}: fit is not supported for HTML`);
+    }
+    if (document.mimeType !== "text/html" && geometry.fit !== undefined && !["contain", "cover"].includes(geometry.fit)) {
+      throw new TypeError(`document ${index}: invalid geometry fit`);
+    }
+    return {
+      mimeType: document.mimeType,
+      data,
+      geometry: {
+        page: geometry.page,
+        orientation: geometry.orientation ?? "portrait",
+        ...(document.mimeType === "text/html" ? {} : { fit: geometry.fit ?? "contain" }),
+      },
+    };
   });
 }
 

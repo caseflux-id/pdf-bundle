@@ -12,6 +12,34 @@ test("accepts UTF-8 HTML and byte views without including unrelated bytes", () =
   assert.deepEqual([...result[1].data], [1, 2]);
 });
 
+test("normalizes geometry with portrait and contain defaults", () => {
+  const result = normalize([
+    { mimeType: "text/html", data: "<p>x</p>", geometry: { page: "letter", orientation: "landscape" } },
+    { mimeType: "image/png", data: new Uint8Array([1]) },
+    { mimeType: "image/jpeg", data: new Uint8Array([1]), geometry: { page: "legal", fit: "cover" } },
+    { mimeType: "application/pdf", data: new Uint8Array([1]), geometry: { page: "a4" } },
+  ]);
+  assert.deepEqual(result[0].geometry, { page: "letter", orientation: "landscape" });
+  assert.equal(result[1].geometry, undefined);
+  assert.deepEqual(result[2].geometry, { page: "legal", orientation: "portrait", fit: "cover" });
+  assert.deepEqual(result[3].geometry, { page: "a4", orientation: "portrait", fit: "contain" });
+});
+
+test("rejects invalid geometry and fit on HTML", () => {
+  const cases = [
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: {} }],
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: { page: "tabloid" } }],
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: { page: "a4", orientation: "sideways" } }],
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: { page: "a4", fit: "fill" } }],
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: { page: "a4", margin: 1 } }],
+    [{ mimeType: "image/png", data: new Uint8Array([1]), geometry: null }],
+    [{ mimeType: "text/html", data: "<p>x</p>", geometry: { page: "a4", fit: "contain" } }],
+  ];
+  for (const value of cases) {
+    assert.throws(() => normalize(value), /document 0/);
+  }
+});
+
 test("rejects empty, unsupported, and mistyped documents", async () => {
   for (const value of [[], null, [{ mimeType: "image/webp", data: new Uint8Array([1]) }],
     [{ mimeType: "application/pdf", data: "not bytes" }],

@@ -33,6 +33,43 @@ or UTF-8 bytes; images and PDFs accept Uint8Array. Images are centered and scale
 to fit one A4 page. Existing PDF page dimensions are retained. HTML defaults to
 A4 and can use CSS `@page` to control page geometry and margins.
 
+### Per-input geometry
+
+Every input accepts an optional `geometry`. When omitted, behavior is unchanged:
+HTML uses A4 (honoring its own CSS `@page`), images are centered on one portrait
+A4 page, and PDF pages keep their dimensions.
+
+```ts
+type Geometry = {
+  page: "a4" | "letter" | "legal";
+  orientation?: "portrait" | "landscape"; // default "portrait"
+  fit?: "contain" | "cover";              // image/PDF only; default "contain"
+};
+```
+
+```ts
+const pdf = await merge([
+  { mimeType: 'text/html', data: html, geometry: { page: 'letter', orientation: 'landscape' } },
+  { mimeType: 'image/png', data: png, geometry: { page: 'a4', fit: 'cover' } },
+  { mimeType: 'application/pdf', data: existing, geometry: { page: 'a4', orientation: 'portrait', fit: 'contain' } },
+]);
+```
+
+- **HTML** geometry (`page`, `orientation`) is appended as a CSS
+  `@page { size: <page> <orientation>; }` rule after the input's own styles, so it
+  overrides a base `@page` size by source order while leaving margins and
+  named/pseudo-page rules intact. `fit` is rejected for HTML.
+- **Images and PDFs** support `fit`. `contain` scales the source to fit the target
+  page and centers it. `cover` scales it to cover the target page and centers it,
+  producing negative offsets so the parts that exceed the page fall outside the
+  page box; no explicit clipping path is added, and the target page's MediaBox
+  bounds what is visible, so the overflow is effectively clipped by the viewer.
+  PDF relayout embeds each source page as a Form XObject, so vector content is
+  preserved rather than rasterized.
+- `page` is required whenever `geometry` is present. Unknown properties,
+  unsupported values, or `fit` on HTML fail before engine initialization, with the
+  input index in the message (for example `document 2: ...`).
+
 ## Use jsDelivr without npm
 
 After version 0.1.0 is published to npm:

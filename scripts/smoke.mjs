@@ -21,5 +21,13 @@ const result = await merge([
 const output = new TextDecoder("latin1").decode(result);
 assert.match(output, /\/Count 4\b/);
 await assert.rejects(merge([{ mimeType: "application/pdf", data: new Uint8Array([1, 2]) }]), /document 0/);
-console.log(`WASM smoke passed: ${first.byteLength} bytes, merged ${result.byteLength} bytes`);
+const geometry = await merge([
+  { mimeType: "text/html", data: "<p>Landscape</p>", geometry: { page: "letter", orientation: "landscape" } },
+  { mimeType: "image/png", data: Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAADCAIAAAA2iEnWAAAAE0lEQVR4nGP8z8DAwMDAxIBMAQAUQAEF3SN5DgAAAABJRU5ErkJggg==', "base64")), geometry: { page: "a4", fit: "cover" } },
+  { mimeType: "application/pdf", data: first, geometry: { page: "a4", orientation: "portrait", fit: "contain" } },
+]);
+const geometryOutput = new TextDecoder("latin1").decode(geometry);
+assert.match(geometryOutput, /\/Count 3\b/);
+assert.match(geometryOutput, /\/MediaBox \[0 0 792(\.0)? 612(\.0)?\]/);
+console.log(`WASM smoke passed: ${first.byteLength} bytes, merged ${result.byteLength} bytes, geometry ${geometry.byteLength} bytes`);
 globalThis.fetch = originalFetch;

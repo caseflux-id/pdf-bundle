@@ -28,6 +28,16 @@ func merge(_ js.Value, args []js.Value) (result any) {
 		value := values.Index(i)
 		data := value.Get("data")
 		inputs[i] = bundle.Input{MIMEType: value.Get("mimeType").String(), Data: make([]byte, data.Get("byteLength").Int())}
+		geometry := value.Get("geometry")
+		if !geometry.IsUndefined() {
+			inputs[i].Geometry = &bundle.Geometry{
+				Page:        geometry.Get("page").String(),
+				Orientation: geometry.Get("orientation").String(),
+			}
+			if fit := geometry.Get("fit"); !fit.IsUndefined() {
+				inputs[i].Geometry.Fit = fit.String()
+			}
+		}
 		if js.CopyBytesToGo(inputs[i].Data, data) != len(inputs[i].Data) {
 			return map[string]any{"error": "incomplete byte copy"}
 		}
