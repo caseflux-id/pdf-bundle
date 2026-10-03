@@ -1,0 +1,28 @@
+{
+  "name": "@caseflux-id/pdf-bundle",
+  "version": "0.1.0",
+  "description": "Bundle HTML, PNG, JPEG and PDF documents into one PDF in the browser.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "git+https://github.com/caseflux-id/pdf-bundle.git" },
+  "homepage": "https://github.com/caseflux-id/pdf-bundle#readme",
+  "bugs": "https://github.com/caseflux-id/pdf-bundle/issues",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./cdn": { "types": "./dist/index.d.ts", "import": "./dist/cdn.js" },
+    "./engine.wasm": "./dist/engine.wasm"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "LICENSE", "NOTICE", "THIRD_PARTY_LICENSES"],
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "test:go": "go test ./...",
+    "test:wasm": "node scripts/smoke.mjs",
+    "prepack": "npm run build"
+  },
+  "keywords": ["pdf", "merge", "html", "wasm", "folio", "browser"]
+}

@@ -1,0 +1,15 @@
+pdf-bundle
+Copyright 2026 Caseflux
+
+Uses Folio v0.10.1, licensed under Apache-2.0.
+Folio
+Copyright 2026 Carlos Munoz and the Folio Authors
+
+Dependencies:
+- Go runtime (BSD-3-Clause)
+- golang.org/x/image (BSD-3-Clause)
+- golang.org/x/net (BSD-3-Clause)
+- golang.org/x/text (BSD-3-Clause)
+
+The matching Go wasm_exec.js is adapted by appending a named ESM export.
+Dependency licenses are included in THIRD_PARTY_LICENSES during the build.
