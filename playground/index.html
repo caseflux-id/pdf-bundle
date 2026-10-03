@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDF Bundle Playground</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <p class="eyebrow">@caseflux-id/pdf-bundle</p>
+      <h1>Merge documents into one PDF</h1>
+      <p class="lede">Try HTML, PNG, JPEG, and PDF inputs directly in your browser. Files stay on your device.</p>
+      <section class="card">
+        <label for="html">HTML document</label>
+        <textarea id="html" rows="7"><h1>Caseflux invoice</h1><p>Rendered locally, then merged into the output PDF.</p></textarea>
+        <label for="files">Images and PDFs</label>
+        <input id="files" type="file" accept="image/png,image/jpeg,application/pdf" multiple>
+        <button id="merge" type="button">Create merged PDF</button>
+        <p id="status" role="status" aria-live="polite">Ready.</p>
+        <a id="download" hidden download="bundle.pdf">Download bundle.pdf</a>
+      </section>
+      <p class="fineprint">Powered by the published WebAssembly engine. No upload or server is involved.</p>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
