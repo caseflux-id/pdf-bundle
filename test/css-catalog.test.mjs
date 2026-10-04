@@ -155,3 +155,181 @@ test("loads the pinned module documentation", async () => {
   assert.equal(catalog.folioVersion, "v0.10.1");
   assert.equal(catalog.properties.length, 2);
 });
+
+const extended = [
+  "# Folio CSS support",
+  "",
+  "## At a glance",
+  "",
+  "| Category | Properties |",
+  "|---|---:|",
+  "| Layout | 1 |",
+  "| **Total** | **1** |",
+  "",
+  "## Layout",
+  "",
+  HEADER + "| `display` | — | `block` | — |\n",
+  "## Selectors",
+  "",
+  "### Pseudo-classes",
+  "",
+  "| Pseudo-class | Notes |",
+  "|---|---|",
+  "| `:root` | The document root. |",
+  "| `:nth-child(<expr>)` | Position match. |",
+  "",
+  "Interaction-state pseudo-classes (`:hover`, `:focus`) are not supported — PDFs are static.",
+  "",
+  "### Pseudo-elements",
+  "",
+  "| Pseudo-element | Notes |",
+  "|---|---|",
+  "| `::before` | Generated content. |",
+  "",
+  "The double-colon form is required — single-colon legacy forms (`:before`, `:after`) are not recognized. `::first-letter`, `::selection` are not supported.",
+  "",
+  "## At-rules",
+  "",
+  "| Rule | Selectors / context | Notes |",
+  "|---|---|---|",
+  "| `@font-face` | — | Custom fonts. |",
+  "| `@page` | `:first`, no selector | Page styling. |",
+  "| `@page` margin boxes | `@top-left` | Running headers. |",
+  "| `@media print` | — | Print medium. |",
+  "",
+  "### Silently ignored at-rules",
+  "",
+  "| Rule | Why |",
+  "|---|---|",
+  "| `@media screen`, `@media (max-width: ...)`, etc. | Fixed geometry. |",
+  "| `@keyframes`, `@-webkit-keyframes` | No timeline. |",
+  "| `@import` | Not followed. |",
+  "",
+  "## Functions",
+  "",
+  "### Math",
+  "",
+  "| Function | Notes |",
+  "|---|---|",
+  "| `calc()` | Math. |",
+  "",
+  "Known limitations: `calc()` does not yet expand inside `rotate()`.",
+  "",
+  "### Color",
+  "",
+  "| Function | Notes |",
+  "|---|---|",
+  "| `rgb()` | Color. |",
+  "| `cmyk()` / `device-cmyk()` | CMYK. |",
+  "",
+  "Known unsupported color functions: `oklch()`, `color-mix()` — precompute.",
+  "",
+  "### Gradients",
+  "",
+  "| Function | Notes |",
+  "|---|---|",
+  "| `linear-gradient()` | Gradient. |",
+  "",
+  "`conic-gradient()` is not supported.",
+].join("\n");
+
+test("parses pseudo-classes and pseudo-elements, including unsupported prose", () => {
+  const catalog = parseCSSSupportMarkdown(extended, "v0.10.1");
+  assert.deepEqual(
+    catalog.pseudoClasses.map(({ name, ignored }) => ({ name, ignored })),
+    [
+      { name: "root", ignored: false },
+      { name: "nth-child", ignored: false },
+      { name: "hover", ignored: true },
+      { name: "focus", ignored: true },
+    ],
+  );
+  assert.equal(catalog.pseudoClasses[1].syntax, ":nth-child(<expr>)");
+  assert.deepEqual(
+    catalog.pseudoElements.map(({ name, ignored }) => ({ name, ignored })),
+    [
+      { name: "before", ignored: false },
+      { name: "first-letter", ignored: true },
+      { name: "selection", ignored: true },
+    ],
+  );
+});
+
+test("parses recognized and silently ignored at-rules", () => {
+  const catalog = parseCSSSupportMarkdown(extended, "v0.10.1");
+  assert.deepEqual(
+    catalog.atRules.map(({ rule, name, ignored }) => ({ rule, name, ignored })),
+    [
+      { rule: "@font-face", name: "font-face", ignored: false },
+      { rule: "@page", name: "page", ignored: false },
+      { rule: "@page margin boxes", name: "page", ignored: false },
+      { rule: "@media print", name: "media", ignored: false },
+      { rule: "@media screen", name: "media", ignored: true },
+      { rule: "@keyframes", name: "keyframes", ignored: true },
+      { rule: "@-webkit-keyframes", name: "-webkit-keyframes", ignored: true },
+      { rule: "@import", name: "import", ignored: true },
+    ],
+  );
+});
+
+test("parses supported functions by category and unsupported prose", () => {
+  const catalog = parseCSSSupportMarkdown(extended, "v0.10.1");
+  assert.deepEqual(
+    catalog.functions.map(({ name, category, ignored }) => ({ name, category, ignored })),
+    [
+      { name: "calc", category: "Math", ignored: false },
+      { name: "rgb", category: "Color", ignored: false },
+      { name: "cmyk", category: "Color", ignored: false },
+      { name: "device-cmyk", category: "Color", ignored: false },
+      { name: "linear-gradient", category: "Gradients", ignored: false },
+      { name: "oklch", category: "Color", ignored: true },
+      { name: "color-mix", category: "Color", ignored: true },
+      { name: "conic-gradient", category: "Gradients", ignored: true },
+    ],
+  );
+});
+
+const withGlossary = [
+  "# Folio CSS support",
+  "",
+  "## At a glance",
+  "",
+  "| Category | Properties |",
+  "|---|---:|",
+  "| Layout | 1 |",
+  "| **Total** | **1** |",
+  "",
+  "## Layout",
+  "",
+  HEADER + "| `display` | — | `block` | — |\n",
+  "## Value-form glossary",
+  "",
+  "| Placeholder | Meaning |",
+  "|---|---|",
+  "| `<track-list>` | Space-separated track sizes. Examples: `1fr 1fr`, `100px auto`, `repeat(3, 1fr)`. |",
+  "| `<color>` | Any of `rgb()`, `rgba()`. Folio renders sRGB only — `oklch()` and `color-mix()` are not supported. |",
+  "| `<transform-function>` | `translate()`, `translateX()`/`Y()`, `scale()`/`X()`/`Y()`. |",
+].join("\n");
+
+test("adds functions documented only in the value-form glossary", () => {
+  const catalog = parseCSSSupportMarkdown(withGlossary, "v0.10.1");
+  assert.deepEqual(
+    catalog.functions.map(({ name, category, ignored }) => ({ name, category, ignored })),
+    [
+      { name: "repeat", category: "Value-form glossary", ignored: false },
+      { name: "rgb", category: "Value-form glossary", ignored: false },
+      { name: "rgba", category: "Value-form glossary", ignored: false },
+      { name: "translate", category: "Value-form glossary", ignored: false },
+      { name: "translateX", category: "Value-form glossary", ignored: false },
+      { name: "scale", category: "Value-form glossary", ignored: false },
+    ],
+  );
+});
+
+test("returns empty section arrays when the documentation omits them", () => {
+  const catalog = parseCSSSupportMarkdown(baseline, "v0.10.1");
+  assert.deepEqual(catalog.atRules, []);
+  assert.deepEqual(catalog.pseudoClasses, []);
+  assert.deepEqual(catalog.pseudoElements, []);
+  assert.deepEqual(catalog.functions, []);
+});

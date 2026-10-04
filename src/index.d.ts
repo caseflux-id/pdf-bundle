@@ -20,11 +20,47 @@ export type SupportedCSSProperty = {
   readonly notes: string;
 };
 
+export type SupportedCSSAtRule = {
+  /** Raw rule label as documented, e.g. "@page margin boxes". */
+  readonly rule: string;
+  /** Normalized at-rule name without the leading "@", e.g. "page". */
+  readonly name: string;
+  /** Selectors or context the rule accepts, or "" when unspecified. */
+  readonly context: string;
+  readonly notes: string;
+  /** True for rules Folio silently drops during parsing. */
+  readonly ignored: boolean;
+};
+
+export type SupportedCSSSelector = {
+  /** Normalized name without leading colons or arguments, e.g. "nth-child". */
+  readonly name: string;
+  /** Documented syntax, e.g. ":nth-child(<expr>)" or "::before". */
+  readonly syntax: string;
+  readonly notes: string;
+  /** True for selectors Folio explicitly does not support. */
+  readonly ignored: boolean;
+};
+
+export type SupportedCSSFunction = {
+  /** Normalized name without arguments or parentheses, e.g. "linear-gradient". */
+  readonly name: string;
+  /** Documented group, e.g. "Math", "Color", "Gradients", "Transform". */
+  readonly category: string;
+  readonly notes: string;
+  /** True for functions Folio explicitly does not support. */
+  readonly ignored: boolean;
+};
+
 export type SupportedCSS = {
   readonly folioVersion: string;
   readonly properties: readonly SupportedCSSProperty[];
+  readonly atRules: readonly SupportedCSSAtRule[];
+  readonly pseudoClasses: readonly SupportedCSSSelector[];
+  readonly pseudoElements: readonly SupportedCSSSelector[];
+  readonly functions: readonly SupportedCSSFunction[];
   readonly documentation: string;
 };
 
-/** CSS properties recognized by the bundled Folio engine, derived from its pinned documentation. */
+/** CSS features recognized by the bundled Folio engine, derived from its pinned documentation. */
 export declare function getSupportedCSS(): SupportedCSS;

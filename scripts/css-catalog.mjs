@@ -93,6 +93,242 @@ function parseProperties(lines) {
   return properties;
 }
 
+function isTableRow(line) {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.length > 1;
+}
+
+function splitCells(line) {
+  return line.trim().split("|").slice(1, -1).map((cell) => cell.trim());
+}
+
+function isSeparatorRow(line) {
+  return isTableRow(line) && splitCells(line).every((cell) => /^:?-+:?$/.test(cell));
+}
+
+// Walks the document once and collects every markdown table together with the
+// `##`/`###` headings it sits under, so section-specific parsers can select the
+// tables they care about without rescanning.
+function parseTables(lines) {
+  const tables = [];
+  let section = null;
+  let subsection = null;
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index];
+    const h2 = line.match(/^##\s+(.+?)\s*$/);
+    if (h2) {
+      section = h2[1].trim();
+      subsection = null;
+      index++;
+      continue;
+    }
+    const h3 = line.match(/^###\s+(.+?)\s*$/);
+    if (h3) {
+      subsection = h3[1].trim();
+      index++;
+      continue;
+    }
+    if (isTableRow(line) && index + 1 < lines.length && isSeparatorRow(lines[index + 1])) {
+      const header = splitCells(line);
+      index += 2;
+      const rows = [];
+      while (index < lines.length && isTableRow(lines[index])) {
+        rows.push(splitCells(lines[index]));
+        index++;
+      }
+      tables.push({ section, subsection, header, rows });
+      continue;
+    }
+    index++;
+  }
+  return tables;
+}
+
+function normalizeAtRuleName(token) {
+  const match = token.match(/^@([a-zA-Z-]+)/);
+  return match ? match[1] : null;
+}
+
+function parseAtRules(tables) {
+  const recognized = tables.find(
+    (table) => table.section === "At-rules" && table.subsection === null && table.header[0] === "Rule",
+  );
+  const ignored = tables.find(
+    (table) =>
+      table.section === "At-rules" &&
+      table.subsection === "Silently ignored at-rules" &&
+      table.header[0] === "Rule",
+  );
+  const entries = [];
+  const recognizedRules = new Set();
+  if (recognized) {
+    for (const row of recognized.rows) {
+      const token = backtickTokens(row[0]).find((candidate) => candidate.startsWith("@"));
+      if (!token) continue;
+      const name = normalizeAtRuleName(token);
+      const rule = row[0].replaceAll("`", "").trim();
+      if (!name || recognizedRules.has(rule)) continue;
+      recognizedRules.add(rule);
+      entries.push({
+        rule,
+        name,
+        context: row[1] === EM_DASH ? "" : row[1],
+        notes: row[2] === EM_DASH ? "" : row[2],
+        ignored: false,
+      });
+    }
+  }
+  if (ignored) {
+    const ignoredNames = new Set();
+    for (const row of ignored.rows) {
+      for (const token of backtickTokens(row[0])) {
+        const name = normalizeAtRuleName(token);
+        if (!name || ignoredNames.has(name)) continue;
+        ignoredNames.add(name);
+        entries.push({
+          rule: token,
+          name,
+          context: "",
+          notes: row[1] === EM_DASH ? "" : row[1],
+          ignored: true,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+const PSEUDO_NAME_PATTERN = /^:{1,2}[a-zA-Z-]+$/;
+
+function parsePseudoTable(table) {
+  const entries = [];
+  if (!table) return entries;
+  for (const row of table.rows) {
+    const token = backtickTokens(row[0])[0];
+    if (!token) continue;
+    const name = token.replace(/^:{1,2}/, "").replace(/\(.*$/, "").trim();
+    if (!name) continue;
+    entries.push({ name, syntax: token, notes: row[1] === EM_DASH ? "" : row[1], ignored: false });
+  }
+  return entries;
+}
+
+function parsePseudoProse(lines, subsection, sigil) {
+  const entries = [];
+  const seen = new Set();
+  let section = null;
+  let current = null;
+  for (const line of lines) {
+    const h2 = line.match(/^##\s+(.+?)\s*$/);
+    if (h2) {
+      section = h2[1].trim();
+      current = null;
+      continue;
+    }
+    const h3 = line.match(/^###\s+(.+?)\s*$/);
+    if (h3) {
+      current = h3[1].trim();
+      continue;
+    }
+    if (section !== "Selectors" || current !== subsection) continue;
+    if (!/not supported/i.test(line)) continue;
+    for (const token of backtickTokens(line)) {
+      if (!PSEUDO_NAME_PATTERN.test(token) || !token.startsWith(sigil)) continue;
+      if (sigil === ":" && token.startsWith("::")) continue;
+      const name = token.replace(/^:{1,2}/, "");
+      if (seen.has(name)) continue;
+      seen.add(name);
+      entries.push({ name, syntax: token, notes: "", ignored: true });
+    }
+  }
+  return entries;
+}
+
+const FUNCTION_TOKEN_PATTERN = /^([a-zA-Z][\w-]*)\(\)$/;
+
+function parseFunctionTables(tables) {
+  const entries = [];
+  for (const table of tables) {
+    if (table.section !== "Functions" || table.header[0] !== "Function") continue;
+    for (const row of table.rows) {
+      for (const token of backtickTokens(row[0])) {
+        const match = token.match(FUNCTION_TOKEN_PATTERN);
+        if (!match) continue;
+        entries.push({
+          name: match[1],
+          category: table.subsection ?? "",
+          notes: row[1] === EM_DASH ? "" : row[1],
+          ignored: false,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+function parseFunctionProse(lines) {
+  const entries = [];
+  const seen = new Set();
+  let section = null;
+  let category = null;
+  for (const line of lines) {
+    const h2 = line.match(/^##\s+(.+?)\s*$/);
+    if (h2) {
+      section = h2[1].trim();
+      category = null;
+      continue;
+    }
+    const h3 = line.match(/^###\s+(.+?)\s*$/);
+    if (h3) {
+      category = h3[1].trim();
+      continue;
+    }
+    if (section !== "Functions") continue;
+    if (!/unsupported|not supported/i.test(line)) continue;
+    for (const token of backtickTokens(line)) {
+      const match = token.match(FUNCTION_TOKEN_PATTERN);
+      if (!match || seen.has(match[1])) continue;
+      seen.add(match[1]);
+      entries.push({ name: match[1], category: category ?? "", notes: "", ignored: true });
+    }
+  }
+  return entries;
+}
+
+const GLOSSARY_FUNCTION_PATTERN = /^([a-zA-Z][\w-]*)\(/;
+const NEGATIVE_CLAUSE_PATTERN = /not supported|unsupported|not parsed|silently ignored/i;
+
+// Functions are documented in two places: the dedicated Functions tables and
+// the value-form glossary (e.g. `repeat()` is only described under
+// `<track-list>`). Collect the latter so the supported set is complete.
+function parseValueFormGlossary(lines) {
+  const names = [];
+  const seen = new Set();
+  let section = null;
+  for (const line of lines) {
+    const h2 = line.match(/^##\s+(.+?)\s*$/);
+    if (h2) {
+      section = h2[1].trim();
+      continue;
+    }
+    if (section !== "Value-form glossary") continue;
+    for (const clause of line.split(/\.\s|\u2014/)) {
+      if (NEGATIVE_CLAUSE_PATTERN.test(clause)) continue;
+      for (const token of backtickTokens(clause)) {
+        const match = token.match(GLOSSARY_FUNCTION_PATTERN);
+        if (!match) continue;
+        const name = match[1];
+        // Skip single-letter placeholders like `X()`/`Y()` in transform lists.
+        if (name.length < 2 || seen.has(name)) continue;
+        seen.add(name);
+        names.push(name);
+      }
+    }
+  }
+  return names;
+}
+
 function assertUnique(properties) {
   const owners = new Map();
   for (const property of properties) {
@@ -135,7 +371,45 @@ export function parseCSSSupportMarkdown(markdown, folioVersion) {
   if (properties.length !== summary.total) {
     throw new Error(`Total: documented ${summary.total} properties, parsed ${properties.length}`);
   }
-  return { folioVersion, properties, documentation: markdown };
+  const tables = parseTables(lines);
+  const pseudoClasses = [
+    ...parsePseudoTable(
+      tables.find(
+        (table) =>
+          table.section === "Selectors" &&
+          table.subsection === "Pseudo-classes" &&
+          table.header[0] === "Pseudo-class",
+      ),
+    ),
+    ...parsePseudoProse(lines, "Pseudo-classes", ":"),
+  ];
+  const pseudoElements = [
+    ...parsePseudoTable(
+      tables.find(
+        (table) =>
+          table.section === "Selectors" &&
+          table.subsection === "Pseudo-elements" &&
+          table.header[0] === "Pseudo-element",
+      ),
+    ),
+    ...parsePseudoProse(lines, "Pseudo-elements", "::"),
+  ];
+  const functions = [...parseFunctionTables(tables), ...parseFunctionProse(lines)];
+  const knownFunctions = new Set(functions.map((fn) => fn.name));
+  for (const name of parseValueFormGlossary(lines)) {
+    if (knownFunctions.has(name)) continue;
+    knownFunctions.add(name);
+    functions.push({ name, category: "Value-form glossary", notes: "", ignored: false });
+  }
+  return {
+    folioVersion,
+    properties,
+    atRules: parseAtRules(tables),
+    pseudoClasses,
+    pseudoElements,
+    functions,
+    documentation: markdown,
+  };
 }
 
 export function resolveFolioModule(runGo) {

@@ -72,22 +72,37 @@ const pdf = await merge([
 
 ## Supported CSS
 
-`getSupportedCSS()` returns the CSS properties recognized by the bundled Folio
+`getSupportedCSS()` returns the CSS features recognized by the bundled Folio
 engine. The catalog is derived at build time from the pinned Folio
 documentation, so it matches the engine without a runtime fetch or a WASM start:
 
 ```ts
 import { getSupportedCSS } from '@caseflux-id/pdf-bundle';
 
-const { folioVersion, properties, documentation } = getSupportedCSS();
+const {
+  folioVersion,
+  properties,
+  atRules,
+  pseudoClasses,
+  pseudoElements,
+  functions,
+  documentation,
+} = getSupportedCSS();
+
 const fonts = properties.filter((property) => property.category === 'Typography');
 ```
 
-Each property exposes `name`, `aliases`, `values`, `category`, and `notes`. The
-result is deeply frozen. `documentation` is the full upstream CSS support
-document, preserving selectors, at-rules, functions, and known limitations. The
-list covers registered properties only: it excludes special content, custom
-properties, and at-rule descriptors, and it is not a CSS validator.
+Each property exposes `name`, `aliases`, `values`, `category`, and `notes`.
+`atRules` carries the recognized `@`-rules (and the ones Folio silently drops,
+flagged with `ignored`). `pseudoClasses` and `pseudoElements` list supported
+selectors plus the explicitly unsupported ones. `functions` covers recognized
+value functions per category, including any documented only in the value-form
+glossary (category `Value-form glossary`), plus the unsupported ones. The result is deeply
+frozen. `documentation` is the full upstream CSS support document.
+
+The catalog describes registered properties, selectors, at-rules, and functions
+only: it excludes special content and custom properties, and it is not a CSS
+validator.
 
 ## Use jsDelivr without npm
 
