@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile, mkdir, rm, copyFile } from "node:fs/promises";
 import { join } from "node:path";
+import { loadFolioCatalog, renderCSSModule } from "./css-catalog.mjs";
 
 const { version } = JSON.parse(await readFile("package.json", "utf8"));
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Use a stable semver version for releases");
@@ -13,9 +14,14 @@ execFileSync("go", ["build", "-buildvcs=false", "-trimpath", "-ldflags", `-s -w 
 const goroot = execFileSync("go", ["env", "GOROOT"], { encoding: "utf8" }).trim();
 const runtime = await readFile(join(goroot, "lib/wasm/wasm_exec.js"), "utf8");
 await writeFile("dist/wasm_exec.js", runtime + "\nexport const Go = globalThis.Go;\n");
-for (const name of ["index.js", "cdn.js", "core.js", "index.d.ts"]) {
+for (const name of ["index.js", "cdn.js", "core.js", "css.js", "index.d.ts"]) {
   await writeFile(join("dist", name), (await readFile(join("src", name), "utf8")).replaceAll("__VERSION__", version));
 }
+const catalog = await loadFolioCatalog(
+  (args) => execFileSync("go", args, { encoding: "utf8" }),
+  (path) => readFile(path, "utf8"),
+);
+await writeFile("dist/css-catalog.js", renderCSSModule(catalog));
 // Ship the actual licenses for Go and every module linked into the engine.
 await rm("THIRD_PARTY_LICENSES", { recursive: true, force: true });
 await mkdir("THIRD_PARTY_LICENSES");

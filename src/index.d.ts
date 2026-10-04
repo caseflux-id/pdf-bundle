@@ -11,3 +11,20 @@ export type BundleDocument =
 
 /** Convert and concatenate documents, preserving input page order. Browser API. */
 export declare function merge(documents: readonly BundleDocument[]): Promise<Uint8Array>;
+
+export type SupportedCSSProperty = {
+  readonly name: string;
+  readonly aliases: readonly string[];
+  readonly values: readonly string[];
+  readonly category: string;
+  readonly notes: string;
+};
+
+export type SupportedCSS = {
+  readonly folioVersion: string;
+  readonly properties: readonly SupportedCSSProperty[];
+  readonly documentation: string;
+};
+
+/** CSS properties recognized by the bundled Folio engine, derived from its pinned documentation. */
+export declare function getSupportedCSS(): SupportedCSS;

@@ -70,6 +70,25 @@ const pdf = await merge([
   unsupported values, or `fit` on HTML fail before engine initialization, with the
   input index in the message (for example `document 2: ...`).
 
+## Supported CSS
+
+`getSupportedCSS()` returns the CSS properties recognized by the bundled Folio
+engine. The catalog is derived at build time from the pinned Folio
+documentation, so it matches the engine without a runtime fetch or a WASM start:
+
+```ts
+import { getSupportedCSS } from '@caseflux-id/pdf-bundle';
+
+const { folioVersion, properties, documentation } = getSupportedCSS();
+const fonts = properties.filter((property) => property.category === 'Typography');
+```
+
+Each property exposes `name`, `aliases`, `values`, `category`, and `notes`. The
+result is deeply frozen. `documentation` is the full upstream CSS support
+document, preserving selectors, at-rules, functions, and known limitations. The
+list covers registered properties only: it excludes special content, custom
+properties, and at-rule descriptors, and it is not a CSS validator.
+
 ## Use jsDelivr without npm
 
 After version 0.1.0 is published to npm:
